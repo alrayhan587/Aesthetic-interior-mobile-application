@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:clerk_flutter/clerk_flutter.dart';
+import '../../services/user_session_manager.dart';
 import 'package:skeletonizer/skeletonizer.dart';
-import 'package:fui_kit/fui_kit.dart';
 import 'package:intl/intl.dart';
 
 import '../../widgets/mobile_app_header.dart';
@@ -37,20 +36,19 @@ class _SeniorCrmDashboardScreenState extends State<SeniorCrmDashboardScreen> {
       _debugInfo = {};
     });
     try {
-      final authState = ClerkAuth.of(context, listen: false);
-      final sessionToken = await authState.sessionToken();
-      final hasToken = sessionToken.jwt.isNotEmpty;
+      final token = UserSessionManager.instance.token ?? '';
+      final hasToken = token.isNotEmpty;
 
       setState(() {
         _debugInfo = {
           'API URL': '${AppConfig.apiBaseUrl}/api/sr-dashboard',
-          'Has session token': hasToken ? 'Yes (${sessionToken.jwt.length} chars)' : 'NO — not logged in',
+          'Has session token': hasToken ? 'Yes (${token.length} chars)' : 'NO — not logged in',
         };
       });
 
       if (!hasToken) throw Exception('No session token. Are you logged in?');
 
-      final data = await _apiService.fetchDashboardData(sessionToken.jwt);
+      final data = await _apiService.fetchDashboardData(token);
       if (mounted) {
         setState(() {
           _data = data;
@@ -58,7 +56,6 @@ class _SeniorCrmDashboardScreenState extends State<SeniorCrmDashboardScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error loading dashboard: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;

@@ -1,10 +1,9 @@
-import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../screens/user_profile_view_screen.dart';
+import '../services/user_session_manager.dart';
 
-/// Flutter equivalent of Clerk Android `UserButton()`.
-/// Renders avatar-only and opens profile view on tap.
+/// Renders user avatar and opens profile view on tap.
 class UserButton extends StatelessWidget {
   const UserButton({super.key, this.size = 36});
 
@@ -12,44 +11,66 @@ class UserButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClerkAuthBuilder(
-      builder: (context, authState) {
-        if (authState.user == null) {
-          return const SizedBox.shrink();
-        }
-        final user = authState.user!;
-        return GestureDetector(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const UserProfileViewScreen(),
-              ),
-            );
-          },
-          child: Container(
-            width: size,
-            height: size,
-            clipBehavior: Clip.antiAlias,
-            decoration: const BoxDecoration(shape: BoxShape.circle),
-            child: user.imageUrl?.isNotEmpty == true
-                ? Image.network(
-                    user.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        _avatarFallback(),
-                  )
-                : _avatarFallback(),
+    final user = UserSessionManager.instance.cachedUser;
+    if (user == null) {
+      return GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const UserProfileViewScreen(),
+            ),
+          );
+        },
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.grey.shade300,
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            Icons.person_rounded,
+            size: size * 0.55,
+            color: Colors.grey.shade700,
+          ),
+        ),
+      );
+    }
+
+    final initial = user.fullName.trim().isNotEmpty
+        ? user.fullName.trim()[0].toUpperCase()
+        : 'U';
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const UserProfileViewScreen(),
           ),
         );
       },
-    );
-  }
-
-  Widget _avatarFallback() {
-    return Container(
-      color: const Color(0xFFEAEAEA),
-      alignment: Alignment.center,
-      child: const Icon(Icons.person, size: 18, color: Color(0xFF7A7A7A)),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: size * 0.44,
+          ),
+        ),
+      ),
     );
   }
 }

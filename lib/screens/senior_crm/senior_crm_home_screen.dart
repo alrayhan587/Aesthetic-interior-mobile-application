@@ -27,7 +27,15 @@ class _SeniorCrmHomeScreenState extends State<SeniorCrmHomeScreen> {
       const SeniorCrmProfileScreen(),
     ];
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+        }
+      },
+      child: Scaffold(
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         transitionBuilder: (child, animation) {
@@ -117,6 +125,7 @@ class _SeniorCrmHomeScreenState extends State<SeniorCrmHomeScreen> {
           ),
         ),
       ),
-    );
+    ), // Scaffold
+    ); // PopScope
   }
 }

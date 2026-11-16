@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
+import 'navigator_key.dart';
 import 'notification_manager.dart';
 
 /// Top-level background message handler — must be a top-level function (not a method).
@@ -58,12 +58,76 @@ Future<void> _firebaseBackgroundMessageHandler(RemoteMessage message) async {
   );
 }
 
+// ── Visit notification type constants ───────────────────────────────────────
+
+const _visitTypes = {
+  'VISIT_ASSIGNED',
+  'VISIT_DUE',
+  'VISIT_REMINDER_30M',
+  'VISIT_DUE_10H',
+  'VISIT_DUE_20H',
+  'VISIT_DUE_24H',
+  'VISIT_DUE_36H',
+  'VISIT_DUE_48H',
+  'VISIT_DUE_72H',
+  'VISIT_RESCHEDULED',
+  'VISIT_CANCELLED',
+};
+
+const _leaderboardTypes = {
+  'VISIT_RANK_CHANGE',
+};
+
+// ── Deep link navigation ─────────────────────────────────────────────────────
+
+/// Routes the user to the correct tab / screen based on the FCM data payload.
+///
+/// Tab indices for VisitTeamHomeScreen:
+///   0 → Home / Dashboard
+///   1 → Visits (All Visits)
+///   2 → Today's Visits
+///   3 → Control (leaders only) / Profile
+///   4 → Profile (leaders only)
+void _handleNotificationNavigation(Map<String, dynamic> data) {
+  final type = data['type'] as String? ?? '';
+
+  // Navigate to Visits tab (index 1) for all visit-type notifications
+  if (_visitTypes.contains(type)) {
+    _navigateToVisitTab(tabIndex: 1);
+    return;
+  }
+
+  // Navigate to Home/Dashboard (index 0) for rank change notifications
+  if (_leaderboardTypes.contains(type)) {
+    _navigateToVisitTab(tabIndex: 0);
+    return;
+  }
+}
+
+void _navigateToVisitTab({required int tabIndex}) {
+  final context = navigatorKey.currentContext;
+  if (context == null) {
+    return;
+  }
+  // Post-frame to avoid navigation during build/layout phases
+  Future.delayed(Duration.zero, () {
+    // The VisitTeamHomeScreen is a bottom-nav shell. We use a global callback
+    // pattern — it listens on the notification stream and handles internally.
+    FcmService.pendingNavTabIndex = tabIndex;
+  });
+}
+
+// ── FcmService ───────────────────────────────────────────────────────────────
+
 class FcmService {
   FcmService._();
 
   static final _messaging = FirebaseMessaging.instance;
   static final _localPlugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
+
+  /// Set by notification deep-links; consumed by VisitTeamHomeScreen on resume.
+  static int? pendingNavTabIndex;
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -89,10 +153,20 @@ class FcmService {
       android: androidSettings,
       iOS: darwinSettings,
     );
-    await _localPlugin.initialize(settings: initSettings);
+    await _localPlugin.initialize(
+      settings: initSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        // User tapped a local notification while app was foregrounded
+        if (response.payload != null) {
+          try {
+            final data = jsonDecode(response.payload!) as Map<String, dynamic>;
+            _handleNotificationNavigation(data);
+          } catch (_) {}
+        }
+      },
+    );
 
     // Create the Android notification channel explicitly.
-    // This MUST exist before any notification is shown.
     await _localPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(
@@ -111,20 +185,43 @@ class FcmService {
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
 
-    // Show notification when app is in foreground and trigger a badge update.
+    // ── Foreground messages ────────────────────────────────────────────────
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       final title = message.notification?.title ?? message.data['title'] ?? 'New Notification';
       final body = message.notification?.body ?? message.data['body'] ?? '';
-      _showLocalNotification(title, body, id: message.hashCode);
-      
-      // Instantly refresh the in-app notification bell list
+
+      // Encode data payload as JSON string for the local notification
+      final payloadJson = jsonEncode(message.data);
+      _showLocalNotification(title, body, id: message.hashCode, payload: payloadJson);
+
+      // Refresh the in-app notification bell list
       NotificationManager.instance.forceFetch();
     });
+
+    // ── Notification opened app from background ────────────────────────────
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      _handleNotificationNavigation(message.data);
+      NotificationManager.instance.forceFetch();
+    });
+
+    // ── App launched from terminated state via notification ────────────────
+    final initialMessage = await _messaging.getInitialMessage();
+    if (initialMessage != null) {
+      // Small delay so the widget tree is fully rendered before navigating
+      Future.delayed(const Duration(milliseconds: 800), () {
+        _handleNotificationNavigation(initialMessage.data);
+      });
+    }
 
     _initialized = true;
   }
 
-  static Future<void> _showLocalNotification(String title, String body, {int id = 0}) async {
+  static Future<void> _showLocalNotification(
+    String title,
+    String body, {
+    int id = 0,
+    String? payload,
+  }) async {
     await _localPlugin.show(
       id: id,
       title: title,
@@ -146,30 +243,25 @@ class FcmService {
           presentSound: true,
         ),
       ),
+      payload: payload,
     );
   }
 
   /// Gets the FCM token and registers it with the backend.
   static Future<void> registerToken(String authToken) async {
     try {
-      debugPrint('🔔 [FCM] registerToken called — requesting FCM token...');
-
       // On iOS, FCM requires APNs token first. Request it explicitly.
       // On Android this is a no-op.
       await _messaging.getAPNSToken().catchError((_) => null);
 
       final fcmToken = await _messaging.getToken();
       if (fcmToken == null) {
-        debugPrint('🔔 [FCM] ⚠️ getToken() returned null — notifications disabled on this device');
         return;
       }
 
-      debugPrint('🔔 [FCM] Got FCM token (first 40 chars): ${fcmToken.substring(0, fcmToken.length.clamp(0, 40))}...');
-
       final uri = Uri.parse(AppConfig.apiBaseUrl).resolve('/api/device-tokens');
-      debugPrint('🔔 [FCM] Registering token at: $uri');
 
-      final response = await http.post(
+      await http.post(
         uri,
         headers: {
           'Content-Type': 'application/json',
@@ -181,21 +273,11 @@ class FcmService {
         }),
       ).timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint('🔔 [FCM] ✅ Device token registered successfully (HTTP ${response.statusCode})');
-      } else {
-        debugPrint('🔔 [FCM] ❌ Failed to register token — HTTP ${response.statusCode}: ${response.body}');
-      }
-
       // Listen for token refreshes and re-register.
       _messaging.onTokenRefresh.listen((newToken) {
-        debugPrint('🔔 [FCM] Token refreshed — re-registering...');
         _reRegisterToken(authToken, newToken);
       });
-    } catch (e, stack) {
-      debugPrint('🔔 [FCM] ❌ registerToken error: $e');
-      debugPrint('🔔 [FCM] Stack: $stack');
-    }
+    } catch (_) {}
   }
 
   static Future<void> _reRegisterToken(String authToken, String fcmToken) async {

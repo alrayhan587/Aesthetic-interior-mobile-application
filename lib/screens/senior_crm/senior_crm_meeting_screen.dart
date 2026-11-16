@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:clerk_flutter/clerk_flutter.dart';
+import '../../services/user_session_manager.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../../widgets/mobile_app_header.dart';
 import '../../theme/crm_colors.dart';
@@ -61,27 +61,26 @@ class _SeniorCrmMeetingScreenState extends State<SeniorCrmMeetingScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final authState = ClerkAuth.of(context, listen: false);
-      final sessionToken = await authState.sessionToken();
+      final token = UserSessionManager.instance.token ?? '';
       
-      if (sessionToken.jwt.isEmpty) {
+      if (token.isEmpty) {
         throw Exception('No token available');
       }
 
       final meetingLeads = await _apiService.fetchMeetingQueue(
-        sessionToken.jwt, 
+        token, 
         search: _searchQuery,
         queueType: 'meeting',
       );
       
       final budgetLeads = await _apiService.fetchMeetingQueue(
-        sessionToken.jwt, 
+        token, 
         search: _searchQuery,
         queueType: 'budget',
       );
 
       final designLeads = await _apiService.fetchMeetingQueue(
-        sessionToken.jwt, 
+        token, 
         search: _searchQuery,
         queueType: 'design',
       );
@@ -97,8 +96,7 @@ class _SeniorCrmMeetingScreenState extends State<SeniorCrmMeetingScreen> {
           _leads = combined;
         });
       }
-    } catch (e) {
-      debugPrint('Error fetching meeting queue: $e');
+    } catch (_) {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -117,8 +115,7 @@ class _SeniorCrmMeetingScreenState extends State<SeniorCrmMeetingScreen> {
   }
 
   Future<void> _showSetMeetingSheet(MeetingQueueLead lead) async {
-    final authState = ClerkAuth.of(context, listen: false);
-    final sessionToken = await authState.sessionToken();
+    final token = UserSessionManager.instance.token ?? '';
     if (!mounted) return;
     
     showModalBottomSheet(
@@ -128,15 +125,14 @@ class _SeniorCrmMeetingScreenState extends State<SeniorCrmMeetingScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => SetMeetingSheet(
         lead: lead,
-        token: sessionToken.jwt,
+        token: token,
         onSuccess: _fetchData,
       ),
     );
   }
 
   Future<void> _showCompleteMeetingSheet(MeetingQueueLead lead) async {
-    final authState = ClerkAuth.of(context, listen: false);
-    final sessionToken = await authState.sessionToken();
+    final token = UserSessionManager.instance.token ?? '';
     if (!mounted) return;
     
     showModalBottomSheet(
@@ -146,15 +142,14 @@ class _SeniorCrmMeetingScreenState extends State<SeniorCrmMeetingScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => CompleteMeetingSheet(
         lead: lead,
-        token: sessionToken.jwt,
+        token: token,
         onSuccess: _fetchData,
       ),
     );
   }
 
   Future<void> _showReassignQuotationSheet(MeetingQueueLead lead) async {
-    final authState = ClerkAuth.of(context, listen: false);
-    final sessionToken = await authState.sessionToken();
+    final token = UserSessionManager.instance.token ?? '';
     if (!mounted) return;
     
     showModalBottomSheet(
@@ -164,15 +159,14 @@ class _SeniorCrmMeetingScreenState extends State<SeniorCrmMeetingScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => ReassignQuotationSheet(
         lead: lead,
-        token: sessionToken.jwt,
+        token: token,
         onSuccess: _fetchData,
       ),
     );
   }
 
   Future<void> _showChangeProjectSizeSheet(MeetingQueueLead lead) async {
-    final authState = ClerkAuth.of(context, listen: false);
-    final sessionToken = await authState.sessionToken();
+    final token = UserSessionManager.instance.token ?? '';
     if (!mounted) return;
     
     showModalBottomSheet(
@@ -182,15 +176,14 @@ class _SeniorCrmMeetingScreenState extends State<SeniorCrmMeetingScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => ChangeProjectSizeSheet(
         lead: lead,
-        token: sessionToken.jwt,
+        token: token,
         onSuccess: _fetchData,
       ),
     );
   }
 
   Future<void> _showDropProjectSheet(MeetingQueueLead lead) async {
-    final authState = ClerkAuth.of(context, listen: false);
-    final sessionToken = await authState.sessionToken();
+    final token = UserSessionManager.instance.token ?? '';
     if (!mounted) return;
     
     showModalBottomSheet(
@@ -200,15 +193,14 @@ class _SeniorCrmMeetingScreenState extends State<SeniorCrmMeetingScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => DropProjectSheet(
         lead: lead,
-        token: sessionToken.jwt,
+        token: token,
         onSuccess: _fetchData,
       ),
     );
   }
 
   Future<void> _showReassignJrArchitectSheet(MeetingQueueLead lead) async {
-    final authState = ClerkAuth.of(context, listen: false);
-    final sessionToken = await authState.sessionToken();
+    final token = UserSessionManager.instance.token ?? '';
     if (!mounted) return;
     
     showModalBottomSheet(
@@ -218,7 +210,7 @@ class _SeniorCrmMeetingScreenState extends State<SeniorCrmMeetingScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => ReassignJrArchitectSheet(
         lead: lead,
-        token: sessionToken.jwt,
+        token: token,
         onSuccess: _fetchData,
       ),
     );

@@ -253,9 +253,36 @@ class _NotificationTile extends StatelessWidget {
   }
 
   IconData _getIconForType(String type) {
-    if (type.contains('FOLLOWUP')) return Icons.schedule_rounded;
-    if (type.contains('VISIT')) return Icons.location_on_rounded;
-    if (type.contains('SIGNUP')) return Icons.person_add_rounded;
+    if (type.contains('FOLLOWUP')) {
+      return Icons.schedule_rounded;
+    }
+    if (type == 'VISIT_ASSIGNED') {
+      return Icons.assignment_ind_rounded;
+    }
+    if (type == 'VISIT_RESCHEDULED') {
+      return Icons.update_rounded;
+    }
+    if (type == 'VISIT_CANCELLED') {
+      return Icons.cancel_rounded;
+    }
+    if (type == 'VISIT_RANK_CHANGE') {
+      return Icons.emoji_events_rounded;
+    }
+    if (type.contains('VISIT_DUE_10H') || type.contains('VISIT_DUE_20H')) {
+      return Icons.warning_amber_rounded;
+    }
+    if (type.contains('VISIT_DUE_24H') ||
+        type.contains('VISIT_DUE_36H') ||
+        type.contains('VISIT_DUE_48H') ||
+        type.contains('VISIT_DUE_72H')) {
+      return Icons.error_outline_rounded;
+    }
+    if (type.contains('VISIT')) {
+      return Icons.location_on_rounded;
+    }
+    if (type.contains('SIGNUP')) {
+      return Icons.person_add_rounded;
+    }
     return Icons.notifications_rounded;
   }
 }

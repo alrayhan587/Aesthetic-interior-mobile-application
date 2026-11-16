@@ -7,12 +7,11 @@ class WidgetTreeView extends StatelessWidget {
   Widget build(BuildContext context) {
     final lines = <String>[
       'CrmMobileApp (StatelessWidget)',
-      '  └─ ClerkAuth',
-      '      └─ MaterialApp',
-      '          ├─ AnnotatedRegion<SystemUiOverlayStyle>',
-      '          └─ home: ClerkAuthBuilder',
-      '              ├─ SignedIn -> RootScreen',
-      '              └─ SignedOut -> ClerkAuthenticationScreen',
+      '  └─ MaterialApp',
+      '      ├─ AnnotatedRegion<SystemUiOverlayStyle>',
+      '      └─ home: AppRoot',
+      '          ├─ LoggedIn -> RootScreen',
+      '          └─ LoggedOut -> LoginScreen',
       '',
       'RootScreen (StatefulWidget)',
       '  ├─ Loading: Scaffold > Center > SpinKitFoldingCube',
@@ -26,10 +25,10 @@ class WidgetTreeView extends StatelessWidget {
       '  │   └─ bottomNavigationBar: NavigationBar',
       '  └─ Access Denied: Scaffold > Column > [Icon, Text, Button]',
       '',
-      'ClerkAuthenticationScreen (StatefulWidget)',
+      'LoginScreen (StatefulWidget)',
       '  ├─ Scaffold > Stack',
-      '  ├─ WaveWidget (background)',
-      '  └─ SafeArea > Center > Column (Welcome, ClerkAuthentication or Loader)',
+      '  ├─ WireframeBackground',
+      '  └─ SafeArea > Center > Card > Form [Email, Password, Sign In Button]',
     ];
 
     return Scaffold(

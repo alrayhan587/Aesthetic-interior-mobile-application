@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:clerk_flutter/clerk_flutter.dart';
+import '../../services/user_session_manager.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
@@ -46,13 +46,7 @@ class _VisitTeamDashboardScreenState extends State<VisitTeamDashboardScreen> {
   }
 
   Future<String?> _getToken() async {
-    try {
-      final authState = ClerkAuth.of(context, listen: false);
-      final sessionToken = await authState.sessionToken();
-      return sessionToken.jwt;
-    } catch (_) {
-      return null;
-    }
+    return UserSessionManager.instance.token;
   }
 
   Future<void> _loadDashboardData() async {

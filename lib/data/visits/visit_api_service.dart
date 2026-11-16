@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 
 import '../../config/app_config.dart';
@@ -71,8 +70,14 @@ class VisitApiService {
 
     final headers = <String, String>{'Accept': 'application/json'};
     final effectiveAuthToken = (authTokenOverride ?? _authToken).trim();
+
     if (effectiveAuthToken.isNotEmpty) {
       headers['Authorization'] = 'Bearer $effectiveAuthToken';
+    } else {
+      throw const VisitApiException(
+        'Authentication required. No session token found. Please sign in again.',
+        statusCode: 401,
+      );
     }
 
     late final http.Response response;
@@ -80,22 +85,42 @@ class VisitApiService {
       response = await _client
           .get(uri, headers: headers)
           .timeout(const Duration(seconds: 15));
-    } catch (_) {
-      throw const VisitApiException(
-        'Could not reach the API. Check API_BASE_URL and network access.',
+    } catch (e) {
+      throw VisitApiException(
+        'Could not reach the API at $_baseUrl. Check API_BASE_URL and network access ($e).',
       );
     }
 
     if (response.statusCode == 401) {
-      throw const VisitApiException(
-        'Unauthorized (401). Mobile must send a valid Clerk-authenticated token/session.',
+      String message = 'Session expired or unauthorized (401). Please sign in again.';
+      try {
+        final payload = jsonDecode(response.body);
+        if (payload is Map<String, dynamic>) {
+          final serverError = payload['error'] ?? payload['message'];
+          if (serverError is String && serverError.trim().isNotEmpty) {
+            message = 'Unauthorized (401): $serverError';
+          }
+        }
+      } catch (_) {}
+      throw VisitApiException(
+        message,
         statusCode: 401,
       );
     }
 
     if (response.statusCode == 403) {
-      throw const VisitApiException(
-        'Forbidden (403). This account is missing VISIT_TEAM / JR_CRM / ADMIN permission.',
+      String message = 'Forbidden (403). This account is missing VISIT_TEAM / JR_CRM / ADMIN permission.';
+      try {
+        final payload = jsonDecode(response.body);
+        if (payload is Map<String, dynamic>) {
+          final serverError = payload['error'] ?? payload['message'];
+          if (serverError is String && serverError.trim().isNotEmpty) {
+            message = 'Forbidden (403): $serverError';
+          }
+        }
+      } catch (_) {}
+      throw VisitApiException(
+        message,
         statusCode: 403,
       );
     }
@@ -168,17 +193,19 @@ class VisitApiService {
     final effectiveAuthToken = (authTokenOverride ?? _authToken).trim();
     if (effectiveAuthToken.isEmpty) return null;
 
-    final response = await _client.get(
-      uri,
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $effectiveAuthToken',
-      },
-    ).timeout(const Duration(seconds: 15));
+    try {
+      final response = await _client.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $effectiveAuthToken',
+        },
+      ).timeout(const Duration(seconds: 15));
 
-    if (response.statusCode == 200) {
-      return DashboardPerformanceData.fromJson(jsonDecode(response.body));
-    }
+      if (response.statusCode == 200) {
+        return DashboardPerformanceData.fromJson(jsonDecode(response.body));
+      }
+    } catch (_) {}
     return null;
   }
 

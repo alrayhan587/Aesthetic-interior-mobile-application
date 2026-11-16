@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:clerk_flutter/clerk_flutter.dart';
+import '../../config/app_config.dart';
+import '../../services/user_session_manager.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../../widgets/mobile_app_header.dart';
-import '../../theme/crm_colors.dart';
 import '../../models/review_submission.dart';
 
 class SeniorCrmReviewScreen extends StatefulWidget {
@@ -48,14 +48,7 @@ class _SeniorCrmReviewScreenState extends State<SeniorCrmReviewScreen> {
   }
 
   Future<String?> _getToken() async {
-    try {
-      final authState = ClerkAuth.of(context, listen: false);
-      final sessionToken = await authState.sessionToken();
-      return sessionToken.jwt;
-    } catch (e) {
-      debugPrint('Error getting Clerk token: $e');
-      return null;
-    }
+    return UserSessionManager.instance.token;
   }
 
   Future<void> _fetchData() async {
@@ -64,7 +57,8 @@ class _SeniorCrmReviewScreenState extends State<SeniorCrmReviewScreen> {
     });
 
     try {
-      final url = Uri.parse('https://www.aestheticinteriorbd.com/api/cad-work/review-center?limit=50');
+      final url = Uri.parse(
+          '${AppConfig.apiBaseUrl}/api/cad-work/review-center?limit=50');
       final token = await _getToken();
       
       final response = await http.get(
@@ -84,8 +78,7 @@ class _SeniorCrmReviewScreenState extends State<SeniorCrmReviewScreen> {
           });
         }
       }
-    } catch (e) {
-      debugPrint('Error fetching review submissions: $e');
+    } catch (_) {
     } finally {
       if (mounted) {
         setState(() {
@@ -99,7 +92,8 @@ class _SeniorCrmReviewScreenState extends State<SeniorCrmReviewScreen> {
     try {
       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
       
-      final url = Uri.parse('https://www.aestheticinteriorbd.com/api/cad-work/review-center/$submissionId/decision');
+      final url = Uri.parse(
+          '${AppConfig.apiBaseUrl}/api/cad-work/review-center/$submissionId/decision');
       final token = await _getToken();
       
       final response = await http.post(

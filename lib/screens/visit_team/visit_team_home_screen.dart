@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:clerk_flutter/clerk_flutter.dart';
+import '../../services/user_session_manager.dart';
+import '../../services/fcm_service.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:fui_kit/fui_kit.dart';
 
@@ -9,7 +10,7 @@ import '../../theme/crm_colors.dart';
 import 'dashboard_screen.dart';
 import 'visits_screen.dart';
 import 'today_visits_screen.dart';
-import 'my_support_screen.dart';
+import '../user_profile_view_screen.dart';
 import 'control_visits_screen.dart';
 
 class VisitTeamHomeScreen extends StatefulWidget {
@@ -19,22 +20,65 @@ class VisitTeamHomeScreen extends StatefulWidget {
   State<VisitTeamHomeScreen> createState() => _VisitTeamHomeScreenState();
 }
 
-class _VisitTeamHomeScreenState extends State<VisitTeamHomeScreen> {
+class _VisitTeamHomeScreenState extends State<VisitTeamHomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _roleChecked = false;
   bool _isLeader = false;
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Called when app resumes from background — check for pending FCM navigation.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final pending = FcmService.pendingNavTabIndex;
+      if (pending != null) {
+        FcmService.pendingNavTabIndex = null;
+        _safeNavigateToTab(pending);
+      }
+    }
+  }
+
+  void _safeNavigateToTab(int tabIndex) {
+    if (!mounted) return;
+    final screens = _buildScreens();
+    setState(() => _currentIndex = tabIndex.clamp(0, screens.length - 1));
+  }
+
+  @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchUserRole();
+    // Check if a notification tap happened while app was closed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = FcmService.pendingNavTabIndex;
+      if (pending != null) {
+        FcmService.pendingNavTabIndex = null;
+        _safeNavigateToTab(pending);
+      }
+    });
+  }
+
+  List<Widget> _buildScreens() {
+    return [
+      VisitTeamDashboardScreen(
+        onNavigateToVisits: () => setState(() => _currentIndex = 1),
+      ),
+      const VisitsScreen(),
+      const TodayVisitsScreen(),
+      if (_isLeader) const ControlVisitsScreen(),
+      const UserProfileViewScreen(),
+    ];
   }
 
   Future<void> _fetchUserRole() async {
     try {
-      final authState = ClerkAuth.of(context, listen: false);
-      final sessionToken = await authState.sessionToken();
-      final token = sessionToken.jwt;
+      final token = UserSessionManager.instance.token ?? '';
       if (token.isEmpty) {
         if (mounted) setState(() => _roleChecked = true);
         return;
@@ -63,18 +107,22 @@ class _VisitTeamHomeScreenState extends State<VisitTeamHomeScreen> {
       );
     }
 
-    final screens = [
-      VisitTeamDashboardScreen(
-        onNavigateToVisits: () => setState(() => _currentIndex = 1),
-      ),
-      const VisitsScreen(),
-      const TodayVisitsScreen(),
-      if (_isLeader) const ControlVisitsScreen() else const MySupportScreen(),
-    ];
+    final screens = _buildScreens();
 
     final safeIndex = _currentIndex.clamp(0, screens.length - 1);
 
-    return Scaffold(
+    return PopScope(
+      // Intercept the Android back-gesture / button.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_currentIndex != 0) {
+          // Go back to the Home tab instead of closing the app.
+          setState(() => _currentIndex = 0);
+        }
+        // If already on Home tab, do nothing (don't close the app).
+      },
+      child: Scaffold(
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         transitionBuilder: (child, animation) {
@@ -158,19 +206,19 @@ class _VisitTeamHomeScreenState extends State<VisitTeamHomeScreen> {
                   icon: FUI(RegularRounded.settings, color: CrmColors.mutedForeground, width: 22, height: 22),
                   selectedIcon: FUI(SolidRounded.settings, color: CrmColors.brandPrimary, width: 24, height: 24),
                   label: 'Control',
-                )
-              else
-                NavigationDestination(
-                  icon: FUI(RegularRounded.user, color: CrmColors.mutedForeground, width: 22, height: 22),
-                  selectedIcon: FUI(SolidRounded.user, color: CrmColors.brandPrimary, width: 24, height: 24),
-                  label: 'Profile',
                 ),
+              NavigationDestination(
+                icon: FUI(RegularRounded.user, color: CrmColors.mutedForeground, width: 22, height: 22),
+                selectedIcon: FUI(SolidRounded.user, color: CrmColors.brandPrimary, width: 24, height: 24),
+                label: 'Profile',
+              ),
             ],
           ),
         ),
           ),
         ),
       ),
-    );
+    ), // Scaffold
+    ); // PopScope
   }
 }
